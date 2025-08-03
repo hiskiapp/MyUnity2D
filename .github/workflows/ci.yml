@@ -36,6 +36,8 @@ jobs:
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: '9.0.x'
+        cache: true
+        cache-dependency-path: mycore-api/**/*.csproj
         
     - name: Restore API dependencies
       working-directory: mycore-api
@@ -85,14 +87,10 @@ jobs:
     - name: Cache Unity Library
       uses: actions/cache@v4
       with:
-        path: |
-          unity-project/Library
-          unity-project/Temp
+        path: unity-project/Library
         key: Unity-${{ runner.os }}-${{ hashFiles('unity-project/Packages/manifest.json', 'unity-project/ProjectSettings/ProjectVersion.txt') }}
         restore-keys: |
           Unity-${{ runner.os }}-
-          
-    # Skip Unity setup for test job - unity-test-runner handles it automatically
         
     - name: Run Unity Tests
       uses: game-ci/unity-test-runner@v4
@@ -106,6 +104,7 @@ jobs:
         githubToken: ${{ secrets.GITHUB_TOKEN }}
         customParameters: -logFile -
         artifactsPath: TestResults
+        testMode: PlayMode
         
     - name: Upload test results
       uses: actions/upload-artifact@v4
@@ -146,9 +145,7 @@ jobs:
     - name: Cache Unity Library
       uses: actions/cache@v4
       with:
-        path: |
-          unity-project/Library
-          unity-project/Temp
+        path: unity-project/Library
         key: Unity-${{ runner.os }}-${{ hashFiles('unity-project/Packages/manifest.json', 'unity-project/ProjectSettings/ProjectVersion.txt') }}
         restore-keys: |
           Unity-${{ runner.os }}-
