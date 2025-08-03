@@ -46,7 +46,7 @@ jobs:
       shell: pwsh
       env:
         ConnectionStrings__DefaultConnection: "Host=localhost;Database=mycoredb;Username=postgres;Password="
-        ASPNETCORE_URLS: "http://0.0.0.0:5018"
+        ASPNETCORE_URLS: "http://+:5018"
       run: |
         # Start API in background
         $process = Start-Process dotnet -ArgumentList "run --project MyCore.Api/MyCore.Api.csproj --no-build --configuration Release" -PassThru
@@ -103,10 +103,11 @@ jobs:
         UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
         UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
         UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
-        API_URL: "http://127.0.0.1:5018/pets"
+        API_URL: "http://host.docker.internal:5018/pets"
       with:
         projectPath: unity-project
         githubToken: ${{ secrets.GITHUB_TOKEN }}
+        customParameters: -logFile - -batchmode -quit
         
     - name: Upload test results
       uses: actions/upload-artifact@v4
