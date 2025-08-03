@@ -77,7 +77,8 @@ public class PetTest
         mainController.loadingIndicator = loadingIndicator;
         mainController.errorPanel = errorPanel;
         
-        yield return null;
+        // Wait for Start() to be called by Unity
+        yield return new WaitForEndOfFrame();
     }
     
     private GameObject CreatePetItemPrefab()

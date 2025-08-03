@@ -53,9 +53,9 @@ jobs:
         echo "API_PID=$($process.Id)" >> $env:GITHUB_ENV
         Write-Host "API started with PID: $($process.Id)"
         
-        # Wait for API to be ready
+        # Wait for API to be ready (reduced timeout)
         Write-Host "Waiting for API to start..."
-        for ($i = 0; $i -lt 60; $i++) {
+        for ($i = 0; $i -lt 30; $i++) {
           try {
             $res = Invoke-WebRequest -Uri http://127.0.0.1:5018/pets -UseBasicParsing -ErrorAction SilentlyContinue
             if ($res.StatusCode -eq 200) {
@@ -65,7 +65,7 @@ jobs:
           }
           catch { }
           Write-Host "Attempt $($i + 1): API not ready yet, waiting..."
-          Start-Sleep -s 2
+          Start-Sleep -s 1
         }
         
         # Verify API is responding
@@ -81,21 +81,14 @@ jobs:
     - name: Cache Unity Library
       uses: actions/cache@v4
       with:
-        path: unity-project/Library
-        key: Library-${{ runner.os }}-${{ hashFiles('unity-project/ProjectSettings/**') }}
+        path: |
+          unity-project/Library
+          unity-project/Temp
+        key: Unity-${{ runner.os }}-${{ hashFiles('unity-project/Packages/manifest.json', 'unity-project/ProjectSettings/ProjectVersion.txt') }}
         restore-keys: |
-          Library-${{ runner.os }}-
+          Unity-${{ runner.os }}-
           
-    - name: Setup Unity
-      uses: game-ci/unity-builder@v4
-      env:
-        UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
-        UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
-        UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
-      with:
-        projectPath: unity-project
-        targetPlatform: StandaloneWindows64
-        versionsOnly: true
+    # Skip Unity setup for test job - unity-test-runner handles it automatically
         
     - name: Run Unity Tests
       uses: game-ci/unity-test-runner@v4
@@ -133,6 +126,7 @@ jobs:
   build-unity-windows:
     name: Build Unity Project (Windows)
     runs-on: windows-latest
+    needs: unity-tests-windows
     
     steps:
     - name: Checkout code
@@ -141,10 +135,12 @@ jobs:
     - name: Cache Unity Library
       uses: actions/cache@v4
       with:
-        path: Library
-        key: Library-${{ runner.os }}-${{ hashFiles('ProjectSettings/**') }}
+        path: |
+          Library
+          Temp
+        key: Unity-${{ runner.os }}-${{ hashFiles('Packages/manifest.json', 'ProjectSettings/ProjectVersion.txt') }}
         restore-keys: |
-          Library-${{ runner.os }}-
+          Unity-${{ runner.os }}-
           
     - name: Build Unity Project
       uses: game-ci/unity-builder@v4
