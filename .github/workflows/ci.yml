@@ -7,112 +7,6 @@ on:
     branches: [ main ]
 
 jobs:
-  unity-tests:
-    name: Unity Tests with API Integration
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: Checkout Unity project
-      uses: actions/checkout@v4
-      with:
-        path: unity-project
-        
-    - name: Checkout MyCore API
-      uses: actions/checkout@v4
-      with:
-        repository: hiskiapp/MyCore
-        path: mycore-api
-        
-    - name: Setup PostgreSQL
-      uses: ankane/setup-postgres@v1
-      with:
-        database: mycoredb
-        
-    - name: Setup .NET for API
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: '9.0.x'
-        
-    - name: Restore API dependencies
-      working-directory: mycore-api
-      run: dotnet restore
-      
-    - name: Build API
-      working-directory: mycore-api
-      run: dotnet build --no-restore --configuration Release
-      
-    - name: Start API in background
-      working-directory: mycore-api
-      env:
-        ConnectionStrings__DefaultConnection: "Host=localhost;Database=mycoredb;Username=runner;Password="
-        ASPNETCORE_URLS: "http://0.0.0.0:5018"
-      run: |
-        # Start API in background
-        dotnet run --project MyCore.Api/MyCore.Api.csproj --no-build --configuration Release &
-        API_PID=$!
-        echo "API_PID=$API_PID" >> $GITHUB_ENV
-        echo "API started with PID: $API_PID"
-        
-        # Wait for API to be ready
-        echo "Waiting for API to start..."
-        for i in {1..60}; do
-          if curl -s http://localhost:5018/pets -o /dev/null; then
-            echo "API is ready!"
-            break
-          fi
-          echo "Attempt $i: API not ready yet, waiting..."
-          sleep 2
-        done
-        
-        # Verify API is responding
-        echo "Testing API endpoint:"
-        curl -v http://localhost:5018/pets
-        
-    - name: Cache Unity Library
-      uses: actions/cache@v4
-      with:
-        path: unity-project/Library
-        key: Library-${{ runner.os }}-${{ hashFiles('unity-project/ProjectSettings/**') }}
-        restore-keys: |
-          Library-${{ runner.os }}-
-          
-    - name: Setup Unity
-      uses: game-ci/unity-builder@v4
-      env:
-        UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
-        UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
-        UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
-      with:
-        projectPath: unity-project
-        targetPlatform: StandaloneLinux64
-        versionsOnly: true
-        
-    - name: Run Unity Tests
-      uses: game-ci/unity-test-runner@v4
-      env:
-        UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
-        UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
-        UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
-        API_URL: "http://localhost:5018/pets"
-      with:
-        projectPath: unity-project
-        githubToken: ${{ secrets.GITHUB_TOKEN }}
-        
-    - name: Upload test results
-      uses: actions/upload-artifact@v4
-      if: always()
-      with:
-        name: unity-test-results
-        path: unity-project/artifacts
-        
-    - name: Stop API
-      if: always()
-      run: |
-        if [ ! -z "$API_PID" ]; then
-          echo "Stopping API with PID: $API_PID"
-          kill $API_PID || true
-        fi
-
   unity-tests-windows:
     name: Unity Tests with API Integration (Windows)
     runs-on: windows-latest
@@ -163,7 +57,7 @@ jobs:
         Write-Host "Waiting for API to start..."
         for ($i = 0; $i -lt 60; $i++) {
           try {
-            $res = Invoke-WebRequest -Uri http://localhost:5018/pets -UseBasicParsing -ErrorAction SilentlyContinue
+            $res = Invoke-WebRequest -Uri http://127.0.0.1:5018/pets -UseBasicParsing -ErrorAction SilentlyContinue
             if ($res.StatusCode -eq 200) {
               Write-Host "API is ready!"
               break
@@ -177,7 +71,7 @@ jobs:
         # Verify API is responding
         Write-Host "Testing API endpoint:"
         try {
-          $response = Invoke-WebRequest -Uri http://localhost:5018/pets
+          $response = Invoke-WebRequest -Uri http://127.0.0.1:5018/pets
           Write-Host "API Response: $($response.StatusCode)"
         }
         catch {
@@ -209,7 +103,7 @@ jobs:
         UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
         UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
         UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
-        API_URL: "http://localhost:5018/pets"
+        API_URL: "http://127.0.0.1:5018/pets"
       with:
         projectPath: unity-project
         githubToken: ${{ secrets.GITHUB_TOKEN }}

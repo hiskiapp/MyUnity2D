@@ -15,7 +15,8 @@ public class ApiClient : MonoBehaviour
 
     if (webRequest.result != UnityWebRequest.Result.Success)
     {
-      onError?.Invoke(webRequest.error);
+      Debug.LogError($"API Request failed: {webRequest.error} | Response Code: {webRequest.responseCode} | URL: {apiUrl}");
+      onError?.Invoke($"API Error: {webRequest.error} (Code: {webRequest.responseCode})");
     }
     else
     {
