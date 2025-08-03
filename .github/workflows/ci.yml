@@ -104,7 +104,7 @@ jobs:
       with:
         projectPath: unity-project
         githubToken: ${{ secrets.GITHUB_TOKEN }}
-        customParameters: -logFile - -batchmode -quit
+        customParameters: -logFile -
         artifactsPath: TestResults
         
     - name: Upload test results
@@ -116,7 +116,7 @@ jobs:
           unity-project/artifacts
           unity-project/TestResults
           unity-project/Logs
-        if-no-files-found: warn
+        if-no-files-found: ignore
         
     - name: Stop API
       if: always()
