@@ -10,6 +10,10 @@ jobs:
   unity-tests-windows:
     name: Unity Tests with API Integration (Windows)
     runs-on: windows-latest
+    permissions:
+      contents: read
+      actions: write
+      checks: write
     
     steps:
     - name: Checkout Unity project
@@ -101,13 +105,18 @@ jobs:
         projectPath: unity-project
         githubToken: ${{ secrets.GITHUB_TOKEN }}
         customParameters: -logFile - -batchmode -quit
+        artifactsPath: TestResults
         
     - name: Upload test results
       uses: actions/upload-artifact@v4
       if: always()
       with:
         name: unity-test-results-windows
-        path: unity-project/artifacts
+        path: |
+          unity-project/artifacts
+          unity-project/TestResults
+          unity-project/Logs
+        if-no-files-found: warn
         
     - name: Stop API
       if: always()
@@ -127,6 +136,9 @@ jobs:
     name: Build Unity Project (Windows)
     runs-on: windows-latest
     needs: unity-tests-windows
+    permissions:
+      contents: read
+      actions: write
     
     steps:
     - name: Checkout code
