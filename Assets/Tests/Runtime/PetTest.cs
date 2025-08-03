@@ -77,8 +77,7 @@ public class PetTest
         mainController.loadingIndicator = loadingIndicator;
         mainController.errorPanel = errorPanel;
         
-        // Wait for Start() to be called by Unity
-        yield return new WaitForEndOfFrame();
+        yield return null;
     }
     
     private GameObject CreatePetItemPrefab()
@@ -110,44 +109,18 @@ public class PetTest
     [UnityTest]
     public IEnumerator TestPetListDisplaysWithRealAPI()
     {
-        Debug.Log("Starting API integration test...");
+        // Wait for scene and API call to complete
+        yield return new WaitForSeconds(3f);
         
         // Find the PetDisplay component
         PetDisplay petDisplay = Object.FindFirstObjectByType<PetDisplay>();
         Transform petListContainer = petDisplay.petListContainer;
-        MainController mainController = Object.FindFirstObjectByType<MainController>();
         
-        // Wait for API call to complete with timeout
-        float timeout = 10f;
-        float timer = 0f;
+        // Check if pets are displayed from real API
+        int petCount = petListContainer.childCount;
+        Assert.Greater(petCount, 0, "Should have pet data from real API");
         
-        while (timer < timeout)
-        {
-            yield return new WaitForSeconds(0.5f);
-            timer += 0.5f;
-            
-            // Check if we have pets loaded or error occurred
-            if (petListContainer.childCount > 0)
-            {
-                Debug.Log($"Success! Found {petListContainer.childCount} pets from real API");
-                Assert.Greater(petListContainer.childCount, 0, "Should have pet data from real API");
-                yield break;
-            }
-            
-            // Check if error panel is active (API failed)
-            if (mainController.errorPanel.activeInHierarchy)
-            {
-                Debug.LogError("Error panel is active, API call failed");
-                Assert.Fail("API call failed - error panel is active");
-                yield break;
-            }
-            
-            Debug.Log($"Waiting for API response... ({timer}s)");
-        }
-        
-        // Timeout reached
-        Debug.LogError($"Test timed out after {timeout}s. Pet count: {petListContainer.childCount}, Error panel active: {mainController.errorPanel.activeInHierarchy}");
-        Assert.Fail($"Test timed out after {timeout}s waiting for API response");
+        Debug.Log($"Success! Found {petCount} pets from real API");
     }
     
     [UnityTearDown]
