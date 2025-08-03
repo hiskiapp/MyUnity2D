@@ -4,7 +4,7 @@ using UnityEngine.Networking;
 
 public class ApiClient : MonoBehaviour
 {
-    private const string DefaultApiUrl = "http://localhost:5018/pets";
+    private const string DefaultApiUrl = "http://127.0.0.1:5018/pets";
 
     public IEnumerator GetPets(System.Action<Pet[]> onSuccess, System.Action<string> onError)
     {
