@@ -57,32 +57,19 @@ jobs:
         # Start API in background
         $process = Start-Process dotnet -ArgumentList "run --project MyCore.Api/MyCore.Api.csproj --no-build --configuration Release" -PassThru
         echo "API_PID=$($process.Id)" >> $env:GITHUB_ENV
-        Write-Host "API started with PID: $($process.Id)"
         
-        # Wait for API to be ready (reduced timeout)
-        Write-Host "Waiting for API to start..."
+        # Wait for API to be ready
         for ($i = 0; $i -lt 30; $i++) {
           try {
-            $res = Invoke-WebRequest -Uri http://127.0.0.1:5018/pets -UseBasicParsing -ErrorAction SilentlyContinue
-            if ($res.StatusCode -eq 200) {
-              Write-Host "API is ready!"
-              break
-            }
+            $res = Invoke-WebRequest -Uri http://localhost:5018/pets -UseBasicParsing -ErrorAction SilentlyContinue
+            if ($res.StatusCode -eq 200) { break }
           }
           catch { }
-          Write-Host "Attempt $($i + 1): API not ready yet, waiting..."
           Start-Sleep -s 1
         }
-        
-        # Verify API is responding
-        Write-Host "Testing API endpoint:"
-        try {
-          $response = Invoke-WebRequest -Uri http://127.0.0.1:5018/pets
-          Write-Host "API Response: $($response.StatusCode)"
-        }
-        catch {
-          Write-Host "API test failed: $_"
-        }
+
+    - name: Verify seeded data
+      run: curl -s http://localhost:5018/pets | grep -c '"name":"Doggo"' | grep 1
         
     - name: Cache Unity Library
       uses: actions/cache@v4
