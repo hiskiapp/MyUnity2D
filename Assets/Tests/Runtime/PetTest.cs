@@ -109,17 +109,31 @@ public class PetTest
     [UnityTest]
     public IEnumerator TestPetListDisplaysWithRealAPI()
     {
-        // Wait for scene and API call to complete
-        yield return new WaitForSeconds(3f);
-        
-        // Find the PetDisplay component
-        PetDisplay petDisplay = Object.FindFirstObjectByType<PetDisplay>();
-        Transform petListContainer = petDisplay.petListContainer;
-        
-        // Check if pets are displayed from real API
+        // Find required components
+        var mainController = Object.FindFirstObjectByType<MainController>();
+        var petDisplay = Object.FindFirstObjectByType<PetDisplay>();
+        Assert.IsNotNull(mainController, "MainController not found in scene");
+        Assert.IsNotNull(petDisplay, "PetDisplay not found in scene");
+
+        var petListContainer = petDisplay.petListContainer;
+
+        // Wait until either data is displayed or an error is shown (to avoid flakiness on CI)
+        float timeoutSeconds = 20f;
+        float deadline = Time.realtimeSinceStartup + timeoutSeconds;
+        while (Time.realtimeSinceStartup < deadline)
+        {
+            bool hasRows = petListContainer != null && petListContainer.childCount > 0;
+            bool hasError = mainController != null && mainController.errorPanel != null && mainController.errorPanel.activeSelf;
+            if (hasRows || hasError)
+            {
+                break;
+            }
+            yield return null;
+        }
+
         int petCount = petListContainer.childCount;
+        Debug.Log($"Pet rows after wait: {petCount}");
         Assert.Greater(petCount, 0, "Should have pet data from real API");
-        
         Debug.Log($"Success! Found {petCount} pets from real API");
     }
     
