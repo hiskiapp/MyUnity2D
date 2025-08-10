@@ -85,13 +85,14 @@ jobs:
         UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
         UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
         UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
-        API_URL: "http://127.0.0.1:5018/pets"
+        API_URL: "http://host.docker.internal:5018/pets"
       with:
         projectPath: unity-project
         githubToken: ${{ secrets.GITHUB_TOKEN }}
         customParameters: -logFile -
         artifactsPath: TestResults
         testMode: PlayMode
+        useHostNetwork: true
         
     - name: Upload test results
       uses: actions/upload-artifact@v4
