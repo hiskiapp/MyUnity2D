@@ -6,6 +6,7 @@ using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
 using UnityEngine.UI;
 
+[Category("e2e")]
 public class PetTest
 {
     private Scene testScene;
@@ -106,7 +107,7 @@ public class PetTest
         return prefab;
     }
 
-    [UnityTest]
+    [UnityTest, Category("e2e")]
     public IEnumerator TestPetListDisplaysWithRealAPI()
     {
         // Find required components

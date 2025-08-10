@@ -1,155 +1,197 @@
-name: Unity CI/CD Pipeline
+name: Unity CI/CD
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  UNITY_PROJECT_PATH: unity-project
+  API_PORT: 5018
+  API_BASE_URL: http://127.0.0.1:5018
+  E2E_CATEGORY: e2e
 
 jobs:
-  unity-tests-windows:
-    name: Unity Tests with API Integration (Windows)
-    runs-on: windows-latest
+  unity-tests-ubuntu:
+    name: Test (PlayMode E2E, Ubuntu)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
     permissions:
       contents: read
-      actions: write
       checks: write
-    
-    steps:
-    - name: Checkout Unity project
-      uses: actions/checkout@v4
-      with:
-        path: unity-project
-        
-    - name: Checkout MyCore API
-      uses: actions/checkout@v4
-      with:
-        repository: hiskiapp/MyCore
-        path: mycore-api
-        
-    - name: Setup PostgreSQL
-      uses: ankane/setup-postgres@v1
-      with:
-        database: mycoredb
-        
-    - name: Setup .NET for API
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: '9.0.x'
-        cache: true
-        cache-dependency-path: mycore-api/**/*.csproj
-        
-    - name: Restore API dependencies
-      working-directory: mycore-api
-      run: dotnet restore
-      
-    - name: Build API
-      working-directory: mycore-api
-      run: dotnet build --no-restore --configuration Release
-      
-    - name: Start API in background
-      working-directory: mycore-api
-      shell: pwsh
-      env:
-        ConnectionStrings__DefaultConnection: "Host=localhost;Database=mycoredb;Username=postgres;Password="
-        ASPNETCORE_URLS: "http://+:5018"
-      run: |
-        # Start API in background
-        $process = Start-Process dotnet -ArgumentList "run --project MyCore.Api/MyCore.Api.csproj --no-build --configuration Release" -PassThru
-        echo "API_PID=$($process.Id)" >> $env:GITHUB_ENV
-        
-        # Wait for API to be ready
-        for ($i = 0; $i -lt 30; $i++) {
-          try {
-            $res = Invoke-WebRequest -Uri http://localhost:5018/pets -UseBasicParsing -ErrorAction SilentlyContinue
-            if ($res.StatusCode -eq 200) { break }
-          }
-          catch { }
-          Start-Sleep -s 1
-        }
 
-    - name: Verify seeded data
-      run: curl -s http://localhost:5018/pets | grep -c '"name":"Doggo"' | grep 1
-        
-    - name: Cache Unity Library
-      uses: actions/cache@v4
-      with:
-        path: unity-project/Library
-        key: Unity-${{ runner.os }}-${{ hashFiles('unity-project/Packages/manifest.json', 'unity-project/ProjectSettings/ProjectVersion.txt') }}
-        restore-keys: |
-          Unity-${{ runner.os }}-
-        
-    - name: Run Unity Tests
-      uses: game-ci/unity-test-runner@v4
-      env:
-        UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
-        UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
-        UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
-        API_URL: "http://host.docker.internal:5018/pets"
-      with:
-        projectPath: unity-project
-        githubToken: ${{ secrets.GITHUB_TOKEN }}
-        customParameters: -logFile -
-        artifactsPath: TestResults
-        testMode: PlayMode
-        useHostNetwork: true
-        
-    - name: Upload test results
-      uses: actions/upload-artifact@v4
-      if: always()
-      with:
-        name: unity-test-results-windows
-        path: unity-project/TestResults
-        if-no-files-found: warn
-        
-    - name: Stop API
-      if: always()
-      shell: pwsh
-      run: |
-        if ($env:API_PID) {
-          Write-Host "Stopping API with PID: $env:API_PID"
-          try {
-            Stop-Process -Id $env:API_PID -Force
-          }
-          catch {
-            Write-Host "Failed to stop API process: $_"
-          }
-        }
+    steps:
+      - name: Checkout Unity project
+        uses: actions/checkout@v4
+        with:
+          path: ${{ env.UNITY_PROJECT_PATH }}
+          fetch-depth: 0
+
+      - name: Detect Unity version
+        id: unityver
+        shell: bash
+        run: |
+          v=$(grep -oP '(?<=m_EditorVersion:\s).*' "${{ env.UNITY_PROJECT_PATH }}/ProjectSettings/ProjectVersion.txt")
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout MyCore API
+        uses: actions/checkout@v4
+        with:
+          repository: hiskiapp/MyCore
+          path: mycore-api
+          fetch-depth: 1
+
+      - name: Setup PostgreSQL
+        uses: ankane/setup-postgres@v1
+        with:
+          database: mycoredb
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+          cache: true
+          cache-dependency-path: mycore-api/**/*.csproj
+
+      - name: Restore + Build API
+        working-directory: mycore-api
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet restore
+          dotnet build --no-restore -c Release
+
+      - name: Start API and wait
+        working-directory: mycore-api
+        shell: bash
+        env:
+          ConnectionStrings__DefaultConnection: "Host=localhost;Database=mycoredb;Username=postgres;Password="
+          ASPNETCORE_URLS: "http://+:${{ env.API_PORT }}"
+        run: |
+          set -euo pipefail
+          nohup dotnet run --project MyCore.Api/MyCore.Api.csproj --no-build -c Release > api.log 2>&1 &
+          echo "API_PID=$!" >> $GITHUB_ENV
+          for i in {1..90}; do
+            curl -sf "${{ env.API_BASE_URL }}/pets" >/dev/null && break || sleep 1
+          done
+
+      - name: Verify seeded data
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -sf "${{ env.API_BASE_URL }}/pets" | grep -q '"name":"Doggo"'
+
+      - name: Cache Unity Library
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.UNITY_PROJECT_PATH }}/Library
+          key: >
+            UnityLibrary-${{ runner.os }}-Unity${{ steps.unityver.outputs.version }}-PlayMode-
+            ${{ hashFiles(format('{0}/Packages/manifest.json', env.UNITY_PROJECT_PATH)) }}
+          restore-keys: |
+            UnityLibrary-${{ runner.os }}-Unity${{ steps.unityver.outputs.version }}-PlayMode-
+            UnityLibrary-${{ runner.os }}-Unity${{ steps.unityver.outputs.version }}-
+            UnityLibrary-${{ runner.os }}-
+            UnityLibrary-
+
+      - id: unitytests
+        name: Run Unity PlayMode E2E
+        uses: game-ci/unity-test-runner@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+          API_URL: "${{ env.API_BASE_URL }}/pets"
+        with:
+          projectPath: ${{ env.UNITY_PROJECT_PATH }}
+          githubToken: ${{ secrets.GITHUB_TOKEN }}
+          testMode: PlayMode
+          useHostNetwork: true
+          artifactsPath: artifacts
+          # enforce e2e-only
+          customParameters: -logFile - -testCategory ${{ env.E2E_CATEGORY }}
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unity-test-results-ubuntu
+          path: ${{ steps.unitytests.outputs.artifactsPath }}
+          retention-days: 7
+          if-no-files-found: warn
+
+      - name: Upload API log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-log
+          path: mycore-api/api.log
+          retention-days: 7
+          if-no-files-found: warn
+
+      - name: Stop API
+        if: always()
+        shell: bash
+        run: |
+          if [[ -n "${API_PID:-}" ]]; then
+            kill "$API_PID" || true
+          fi
 
   build-unity-windows:
-    name: Build Unity Project (Windows)
+    name: Build (Windows x64)
     runs-on: windows-latest
-    needs: unity-tests-windows
+    needs: unity-tests-ubuntu
+    timeout-minutes: 60
     permissions:
       contents: read
-      actions: write
 
     steps:
-    - name: Checkout Unity project
-      uses: actions/checkout@v4
-      with:
-        path: unity-project
+      - name: Checkout Unity project
+        uses: actions/checkout@v4
+        with:
+          path: ${{ env.UNITY_PROJECT_PATH }}
+          fetch-depth: 0
 
-    - name: Cache Unity Library
-      uses: actions/cache@v4
-      with:
-        path: unity-project/Library
-        key: Unity-${{ runner.os }}-${{ hashFiles('unity-project/Packages/manifest.json', 'unity-project/ProjectSettings/ProjectVersion.txt') }}
-        restore-keys: |
-          Unity-${{ runner.os }}-
+      - name: Detect Unity version
+        id: unityver
+        shell: bash
+        run: |
+          v=$(grep -oP '(?<=m_EditorVersion:\s).*' "${{ env.UNITY_PROJECT_PATH }}/ProjectSettings/ProjectVersion.txt")
+          echo "version=$v" >> "$GITHUB_OUTPUT"
 
-    - name: Build Unity Project
-      uses: game-ci/unity-builder@v4
-      env:
-        UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
-        UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
-        UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
-      with:
-        projectPath: unity-project
-        targetPlatform: StandaloneWindows64
+      - name: Cache Unity Library
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.UNITY_PROJECT_PATH }}/Library
+          key: >
+            UnityLibrary-${{ runner.os }}-Unity${{ steps.unityver.outputs.version }}-StandaloneWindows64-
+            ${{ hashFiles(format('{0}/Packages/manifest.json', env.UNITY_PROJECT_PATH)) }}
+          restore-keys: |
+            UnityLibrary-${{ runner.os }}-Unity${{ steps.unityver.outputs.version }}-StandaloneWindows64-
+            UnityLibrary-${{ runner.os }}-Unity${{ steps.unityver.outputs.version }}-
+            UnityLibrary-${{ runner.os }}-
+            UnityLibrary-
 
-    - name: Upload Build Artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: unity-build-windows
-        path: unity-project/build
+      - name: Build Windows Player
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          projectPath: ${{ env.UNITY_PROJECT_PATH }}
+          targetPlatform: StandaloneWindows64
+          buildPath: build
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: unity-build-windows
+          path: ${{ env.UNITY_PROJECT_PATH }}/build
+          retention-days: 7
+          if-no-files-found: error
