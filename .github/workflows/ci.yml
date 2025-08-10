@@ -114,7 +114,7 @@ jobs:
           useHostNetwork: true
           artifactsPath: artifacts
           # enforce e2e-only
-          customParameters: -logFile - -testCategory ${{ env.E2E_CATEGORY }}
+          customParameters: -logFile - -testCategory ${{ env.E2E_CATEGORY }} -burst-disable-compilation
 
       - name: Upload test results
         if: always()
