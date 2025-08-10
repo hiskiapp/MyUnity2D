@@ -70,7 +70,7 @@ jobs:
         working-directory: mycore-api
         shell: bash
         env:
-          ConnectionStrings__DefaultConnection: "Host=localhost;Database=mycoredb;Username=postgres;Password="
+          ConnectionStrings__DefaultConnection: "Host=localhost;Database=mycoredb;Username=runner;Password="
           ASPNETCORE_URLS: "http://+:${{ env.API_PORT }}"
         run: |
           set -euo pipefail
