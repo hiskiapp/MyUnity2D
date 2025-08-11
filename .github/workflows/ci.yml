@@ -14,7 +14,6 @@ env:
   UNITY_PROJECT_PATH: unity-project
   API_PORT: 5018
   API_BASE_URL: http://127.0.0.1:5018
-  E2E_CATEGORY: e2e
 
 jobs:
   unity-tests-ubuntu:
@@ -74,7 +73,7 @@ jobs:
           ASPNETCORE_URLS: "http://+:${{ env.API_PORT }}"
         run: |
           set -euo pipefail
-          nohup dotnet run --project MyCore.Api/MyCore.Api.csproj --no-build -c Release > api.log 2>&1 &
+          nohup dotnet run --project MyCore.Api/MyCore.Api.csproj --no-build -c Release > /dev/null 2>&1 &
           echo "API_PID=$!" >> $GITHUB_ENV
           for i in {1..90}; do
             curl -sf "${{ env.API_BASE_URL }}/pets" >/dev/null && break || sleep 1
@@ -113,8 +112,6 @@ jobs:
           testMode: PlayMode
           useHostNetwork: true
           artifactsPath: artifacts
-          # enforce e2e-only
-          customParameters: -logFile - -testCategory ${{ env.E2E_CATEGORY }} -burst-disable-compilation
 
       - name: Upload test results
         if: always()
@@ -122,15 +119,6 @@ jobs:
         with:
           name: unity-test-results-ubuntu
           path: ${{ steps.unitytests.outputs.artifactsPath }}
-          retention-days: 7
-          if-no-files-found: warn
-
-      - name: Upload API log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: api-log
-          path: mycore-api/api.log
           retention-days: 7
           if-no-files-found: warn
 
